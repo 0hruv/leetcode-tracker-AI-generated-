@@ -18,6 +18,7 @@
             --green: #2ecc71;
             --light-red-bg: rgba(231, 76, 60, 0.15);
             --light-yellow-bg: rgba(241, 196, 15, 0.15);
+            --highlight-bg: rgba(52, 152, 219, 0.2);
             --modal-overlay-color: rgba(0, 0, 0, 0.7);
             --input-bg-color: #2c2c2c;
         }
@@ -76,7 +77,7 @@
             color: var(--text-secondary-color);
         }
 
-        input[type="url"], input[type="date"], input[type="number"], select, textarea {
+        input[type="url"], input[type="text"], input[type="date"], input[type="number"], select, textarea {
             width: 100%;
             padding: 12px;
             border: 1px solid var(--border-color);
@@ -155,7 +156,7 @@
             grid-template-columns: 4fr repeat(2, 1.5fr) 2fr;
             gap: 15px;
             align-items: center;
-            padding: 15px;
+            padding: 20px 15px;
             border-bottom: 1px solid var(--border-color);
             transition: background-color 0.3s ease;
         }
@@ -164,26 +165,44 @@
             border-bottom: none;
         }
         
-        .problem-item:hover {
-            background-color: rgba(255, 255, 255, 0.03);
+        .problem-item.highlight {
+            background-color: var(--highlight-bg);
+            transition: background-color 0.2s ease-in-out;
         }
 
-        .problem-info, .problem-dates, .problem-actions {
+        .problem-info {
+            grid-column: 1 / -1;
+            display: flex;
+            flex-direction: column;
+            gap: 10px;
+            margin-bottom: 10px;
+        }
+        
+        .problem-name {
+            font-size: 1.2rem;
+            font-weight: 600;
+            color: #fff;
+        }
+
+        .problem-info-main {
             display: flex;
             align-items: center;
             gap: 15px;
             flex-wrap: wrap;
         }
         
-        .problem-actions {
-             justify-content: flex-end;
+        .problem-id {
+            font-size: 0.8rem;
+            color: var(--text-secondary-color);
+            background-color: #2c2c2c;
+            padding: 2px 8px;
+            border-radius: 4px;
         }
-
+        
         .problem-link {
             font-weight: 600;
             color: var(--primary-color);
             text-decoration: none;
-            word-break: break-all;
         }
         .problem-link:hover {
             text-decoration: underline;
@@ -211,6 +230,14 @@
         }
         .problem-dates strong {
             color: var(--text-color);
+        }
+
+        .problem-actions {
+            display: flex;
+            align-items: center;
+            gap: 10px;
+            flex-wrap: wrap;
+            justify-content: flex-end;
         }
 
         .problem-actions button {
@@ -269,7 +296,7 @@
             margin-top: 0;
             color: #fff;
         }
-        .date-display {
+        .date-display, #random-problem-name {
             font-size: 1.2rem;
             font-weight: 600;
             color: var(--primary-hover);
@@ -278,6 +305,16 @@
             background-color: var(--input-bg-color);
             border: 1px solid var(--border-color);
             border-radius: 5px;
+        }
+        #random-problem-name {
+            font-size: 1.4rem;
+            color: var(--green);
+        }
+        #random-problem-id {
+            font-size: 0.8rem;
+            color: var(--text-secondary-color);
+            margin-bottom: 10px;
+            word-break: break-all;
         }
         .additive-buttons, .modal-actions {
             display: flex;
@@ -303,7 +340,7 @@
             background-color: var(--green);
             color: #111;
         }
-        #modal-cancel-btn, #modal-reset-btn {
+        #modal-cancel-btn, #modal-reset-btn, #random-problem-close-btn {
             background-color: var(--red);
             color: white;
         }
@@ -339,6 +376,10 @@
                         <label for="problem-link">Problem Link</label>
                         <input type="url" id="problem-link" required>
                     </div>
+                    <div class="full-width">
+                        <label for="problem-name">Problem Name (auto-filled from link)</label>
+                        <input type="text" id="problem-name">
+                    </div>
                     <div>
                         <label for="difficulty">Difficulty</label>
                         <select id="difficulty">
@@ -368,6 +409,7 @@
                     <button id="filter-due">Show Due/Overdue</button>
                 </div>
                  <div class="io-buttons">
+                    <button id="random-problem-btn">🎲 Random Problem</button>
                     <button id="import-btn">Import JSON</button>
                     <button id="export-btn">Export JSON</button>
                     <input type="file" id="import-file" accept=".json" style="display: none;">
@@ -408,6 +450,19 @@
         </div>
     </div>
 
+    <!-- Random Problem Modal -->
+    <div id="random-problem-modal" class="modal-overlay">
+        <div class="modal-content">
+            <h3>Your Random Problem Is...</h3>
+            <div id="random-problem-id"></div>
+            <div id="random-problem-name"></div>
+            <a id="random-problem-link" href="#" target="_blank" class="problem-link">Go to Problem</a>
+            <div class="modal-actions">
+                <button id="random-problem-close-btn">Close</button>
+            </div>
+        </div>
+    </div>
+
 <script>
 document.addEventListener('DOMContentLoaded', () => {
     // DOM Elements
@@ -416,6 +471,8 @@ document.addEventListener('DOMContentLoaded', () => {
     const formTitle = document.getElementById('form-title');
     const formSubmitBtn = document.getElementById('form-submit-btn');
     const hiddenProblemId = document.getElementById('problem-id');
+    const problemLinkInput = document.getElementById('problem-link');
+    const problemNameInput = document.getElementById('problem-name');
 
     // Filter Buttons
     const filterAllBtn = document.getElementById('filter-all');
@@ -425,8 +482,9 @@ document.addEventListener('DOMContentLoaded', () => {
     const exportBtn = document.getElementById('export-btn');
     const importBtn = document.getElementById('import-btn');
     const importFile = document.getElementById('import-file');
+    const randomProblemBtn = document.getElementById('random-problem-btn');
 
-    // Modal Elements
+    // Modals
     const datePickerModal = document.getElementById('date-picker-modal');
     const modalDateDisplay = document.getElementById('modal-date-display');
     const modalAdditiveButtons = datePickerModal.querySelector('.additive-buttons');
@@ -434,6 +492,12 @@ document.addEventListener('DOMContentLoaded', () => {
     const modalCalendar = document.getElementById('modal-calendar');
     const modalConfirmBtn = document.getElementById('modal-confirm-btn');
     const modalCancelBtn = document.getElementById('modal-cancel-btn');
+
+    const randomProblemModal = document.getElementById('random-problem-modal');
+    const randomProblemIdEl = document.getElementById('random-problem-id');
+    const randomProblemNameEl = document.getElementById('random-problem-name');
+    const randomProblemLinkEl = document.getElementById('random-problem-link');
+    const randomProblemCloseBtn = document.getElementById('random-problem-close-btn');
 
     // State
     let problems = JSON.parse(localStorage.getItem('problems')) || [];
@@ -444,21 +508,48 @@ document.addEventListener('DOMContentLoaded', () => {
     // --- UTILITY FUNCTIONS ---
     const getToday = () => {
         const today = new Date();
-        today.setHours(0, 0, 0, 0); // Normalize to midnight for consistent comparisons
+        today.setHours(0, 0, 0, 0);
         return today;
     };
-    
+
     /**
-     * **THE DEFINITIVE FIX IS HERE**
-     * This function robustly parses a 'YYYY-MM-DD' string into a correct local Date object.
-     * It avoids the unreliability of `new Date(string)` by manually constructing the
-     * date from its components, which is not subject to timezone interpretation errors.
-     * This one function is used for ALL date parsing to ensure consistency.
+     * Extracts a problem name from LeetCode or GeeksForGeeks URLs.
      */
+    const extractNameFromUrl = (url) => {
+        if (!url) return '';
+
+        try {
+            let slug = '';
+            // Handle LeetCode URLs
+            if (url.includes('leetcode.com/problems/')) {
+                slug = url.split('/problems/')[1].split('/')[0];
+            } 
+            // Handle GeeksForGeeks URLs
+            else if (url.includes('geeksforgeeks.org')) {
+                // Get the last part of the path, removing any trailing slash
+                const path = new URL(url).pathname;
+                const pathParts = path.split('/').filter(part => part.length > 0);
+                slug = pathParts[pathParts.length - 1];
+            } 
+            else {
+                return ''; // Return empty for unsupported URLs
+            }
+
+            // Capitalize the words from the slug
+            const words = slug.split('-').map(word => 
+                word.charAt(0).toUpperCase() + word.slice(1)
+            );
+            return words.join(' ');
+
+        } catch (error) {
+            console.error("Could not extract name from URL:", url, error);
+            return ''; // Return empty string on error
+        }
+    };
+    
     const parseDateString = (dateString) => {
         if (!dateString) return null;
         const parts = dateString.split('-').map(part => parseInt(part, 10));
-        // new Date(year, monthIndex, day) - month is 0-indexed in JS
         return new Date(parts[0], parts[1] - 1, parts[2]);
     };
     
@@ -477,10 +568,6 @@ document.addEventListener('DOMContentLoaded', () => {
         return result;
     };
     
-    /**
-     * This function robustly converts a local Date object to a 'YYYY-MM-DD' string.
-     * It avoids the timezone conversion issues of `toISOString()`.
-     */
     const toLocalDateString = (date) => {
         const year = date.getFullYear();
         const month = (date.getMonth() + 1).toString().padStart(2, '0');
@@ -506,7 +593,7 @@ document.addEventListener('DOMContentLoaded', () => {
             const dateA = parseDateString(a.nextRevisionDate);
             const dateB = parseDateString(b.nextRevisionDate);
             if (dateA && dateB) return dateA - dateB;
-            return dateA ? -1 : 1; // Sort items with dates before those without
+            return dateA ? -1 : 1;
         });
 
         if (filteredProblems.length === 0) {
@@ -515,7 +602,6 @@ document.addEventListener('DOMContentLoaded', () => {
         }
 
         filteredProblems.forEach(problem => {
-            // Use the single, reliable parse function for all dates
             const revisionDate = parseDateString(problem.nextRevisionDate);
             const lastSolvedDate = parseDateString(problem.lastSolvedDate);
 
@@ -529,8 +615,12 @@ document.addEventListener('DOMContentLoaded', () => {
 
             problemEl.innerHTML = `
                 <div class="problem-info">
-                    <a href="${problem.link}" target="_blank" class="problem-link">${problem.link.length > 50 ? problem.link.slice(0, 50) + '...' : problem.link}</a>
-                    <span class="difficulty-badge difficulty-${problem.difficulty}">${problem.difficulty}</span>
+                    <div class="problem-name">${problem.name}</div>
+                    <div class="problem-info-main">
+                        <span class="problem-id">#${problem.id}</span>
+                        <a href="${problem.link}" target="_blank" class="problem-link">View Problem</a>
+                        <span class="difficulty-badge difficulty-${problem.difficulty}">${problem.difficulty}</span>
+                    </div>
                 </div>
                 
                 <div class="problem-dates">
@@ -558,25 +648,43 @@ document.addEventListener('DOMContentLoaded', () => {
     };
 
     // --- EVENT HANDLERS ---
+    problemLinkInput.addEventListener('input', (e) => {
+        const name = extractNameFromUrl(e.target.value);
+        if (name) {
+            problemNameInput.value = name;
+        }
+    });
+
     problemForm.addEventListener('submit', (e) => {
         e.preventDefault();
         
         const id = hiddenProblemId.value;
-        const problemLink = document.getElementById('problem-link').value;
+        const problemLink = problemLinkInput.value;
         const difficulty = document.getElementById('difficulty').value;
         const nextRevisionDateInput = document.getElementById('next-revision-date').value;
         const notes = document.getElementById('notes').value;
+        let name = problemNameInput.value.trim();
+
+        if (!name) {
+            name = extractNameFromUrl(problemLink) || "Untitled Problem";
+        }
 
         if (id) { // Editing existing problem
             const problem = problems.find(p => p.id == id);
             problem.link = problemLink;
+            problem.name = name;
             problem.difficulty = difficulty;
             problem.notes = notes;
             problem.nextRevisionDate = nextRevisionDateInput ? nextRevisionDateInput : null;
         } else { // Adding new problem
+            let lastId = parseInt(localStorage.getItem('lastProblemId') || '0');
+            const newId = lastId + 1;
+            localStorage.setItem('lastProblemId', newId);
+
             const today = getToday();
             const newProblem = {
-                id: Date.now(),
+                id: newId,
+                name: name,
                 link: problemLink,
                 difficulty,
                 notes,
@@ -611,7 +719,8 @@ document.addEventListener('DOMContentLoaded', () => {
         if (target.classList.contains('btn-edit')) {
             const problem = problems.find(p => p.id == id);
             hiddenProblemId.value = problem.id;
-            document.getElementById('problem-link').value = problem.link;
+            problemLinkInput.value = problem.link;
+            problemNameInput.value = problem.name;
             document.getElementById('difficulty').value = problem.difficulty;
             document.getElementById('next-revision-date').value = problem.nextRevisionDate;
             document.getElementById('notes').value = problem.notes;
@@ -689,6 +798,34 @@ document.addEventListener('DOMContentLoaded', () => {
         datePickerModal.style.display = 'none';
     });
     
+    // Random Problem Logic
+    randomProblemBtn.addEventListener('click', () => {
+        if (problems.length === 0) {
+            alert("No problems to choose from. Please add a problem first.");
+            return;
+        }
+        const randomIndex = Math.floor(Math.random() * problems.length);
+        const randomProblem = problems[randomIndex];
+
+        randomProblemIdEl.textContent = `ID: ${randomProblem.id}`;
+        randomProblemNameEl.textContent = randomProblem.name;
+        randomProblemLinkEl.href = randomProblem.link;
+        randomProblemModal.style.display = 'flex';
+
+        const problemElement = document.querySelector(`.problem-item[data-id='${randomProblem.id}']`);
+        if (problemElement) {
+            problemElement.scrollIntoView({ behavior: 'smooth', block: 'center' });
+            problemElement.classList.add('highlight');
+            setTimeout(() => {
+                problemElement.classList.remove('highlight');
+            }, 2000); // Highlight for 2 seconds
+        }
+    });
+
+    randomProblemCloseBtn.addEventListener('click', () => {
+        randomProblemModal.style.display = 'none';
+    });
+
     // Import / Export Logic
     exportBtn.addEventListener('click', () => {
         if (problems.length === 0) {
@@ -720,6 +857,12 @@ document.addEventListener('DOMContentLoaded', () => {
                 if (data && Array.isArray(data.problems)) {
                     if (confirm('This will overwrite all current data. Are you sure?')) {
                         problems = data.problems;
+                        // For imported data, ensure names exist
+                        problems.forEach(p => {
+                            if (!p.name) {
+                                p.name = extractNameFromUrl(p.link);
+                            }
+                        });
                         saveProblems();
                         renderProblems();
                         alert('Data imported successfully!');
@@ -733,10 +876,43 @@ document.addEventListener('DOMContentLoaded', () => {
             }
         };
         reader.readAsText(file);
-        importFile.value = ''; // Reset for next import
+        importFile.value = '';
     });
 
-    // Initial Load
+    // Initial Load & Data Migration
+    const migrateData = () => {
+        let needsSave = false;
+        let maxId = 0;
+        // Check if migration to numeric IDs is needed
+        const needsMigration = problems.some(p => typeof p.id !== 'number' || p.id > 100000); // Heuristic for timestamp
+        
+        if (needsMigration) {
+            problems.forEach((p, index) => {
+                p.id = index + 1;
+                needsSave = true;
+            });
+            maxId = problems.length;
+        } else {
+            // Find the current max ID
+            maxId = problems.reduce((max, p) => p.id > max ? p.id : max, 0);
+        }
+
+        // Ensure name property exists
+        problems.forEach(p => {
+            if (!p.name) {
+                p.name = extractNameFromUrl(p.link) || 'Untitled Problem';
+                needsSave = true;
+            }
+        });
+
+        if (needsSave) {
+            saveProblems();
+        }
+        
+        localStorage.setItem('lastProblemId', maxId);
+    };
+
+    migrateData();
     renderProblems();
 });
 </script>
